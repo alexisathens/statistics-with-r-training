@@ -1,0 +1,100 @@
+---
+title: "hierarchical-and-mixed-effects-models-in-r"
+author: "Alexis Athens"
+date: '2022-05-31'
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+## Overview and Introduction to Hierarchical and Mixed Models
+
+### What is a hierarchical model?
+
+Use a HLM when: - data nested within itself (students nested within teachers within schools) - pool information across small sample sizes (law of large numbers, LLN, states taht as n grows, the mean gets closer to the population average) - repeated observations across groups or individuals (students across years)
+
+```{r download-data}
+# get test data
+# download.file("https://assets.datacamp.com/production/repositories/1803/datasets/975fe2b0190804d854a5da90083364629fb6af2e/classroom.csv", "hierarchical-and-mixed-effects-models-in-r-data/classroom_data.csv")
+
+student_data <- read_csv("hierarchical-and-mixed-effects-models-in-r-data/classroom_data.csv")
+
+```
+
+```{r plot-linear}
+# Plot the data
+ggplot(data = student_data, aes(x = mathknow, y = mathgain)) +
+  geom_point() +
+  geom_smooth(method = lm)
+# no clear relationship using a linear model
+
+# Fit a linear model
+summary(lm(mathgain ~ mathknow , data =  student_data))
+# confirmed statistically insignificant
+```
+
+#### Exploring multiple levels: classrooms and schools
+
+```{r try-levels}
+# Summarize the student data at the classroom level
+class_data <-
+  student_data %>%
+  group_by(classid, schoolid) %>%
+  summarize(mathgain_class = mean(mathgain),
+            mathknow_class = mean(mathknow),
+            n_class = n(), .groups = "keep")
+
+# Model the math gain with the student-level data
+lm(mathgain ~ mathknow, data = student_data)
+
+# Model the math gain with the classroom-level data
+lm(mathgain_class ~ mathknow_class, data = class_data)
+
+# Summarize the data at the school level
+school_data <-
+  student_data %>%
+  group_by(schoolid) %>%
+  summarize(mathgain_school = mean(mathgain),
+            mathknow_school = mean(mathknow),
+            n_school = n(), .groups = 'keep')
+
+# Model the data at the school-level
+lm(mathgain_school ~ mathknow_school, data = school_data)
+
+# Summarize school by class (s_by_c)
+s_by_c_data <-
+  class_data %>%
+  group_by(schoolid) %>%
+  summarize(mathgain_s_by_c = mean(mathgain_class),
+            mathknow_s_by_c = mean(mathknow_class),
+            n_s_by_c = n(), .groups = 'keep')
+
+# Model the data at the school-level after summarizing
+# students at the class level
+lm(mathgain_s_by_c ~ mathknow_s_by_c, data = s_by_c_data)
+```
+
+Note that all of these produce very different estimates for the estimate of how a teacher's math knowledge impacts a student's performance gains!
+
+### Parts of a Regression
+
+```{r understanding-coefficients}
+school_3_data <- student_data %>% filter(schoolid == 3)
+  
+# Use a linear model to estimate the global intercept
+lm(mathgain ~ 1, data = school_3_data)
+
+# Use summarize to calculate the mean
+school_3_data %>%
+    summarize(mean(mathgain))
+
+# Use a linear model to estimate mathgain in each classroom
+lm(mathgain ~ factor(classid) - 1, data = school_3_data)
+# the "- 1" call estimates an intercept for each group (classid) rather than a global estimate
+```
+
+```{r understanding-slopes}
+
+```
